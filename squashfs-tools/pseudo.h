@@ -36,6 +36,7 @@ struct pseudo_dev {
 	unsigned int	gid;
 	unsigned int	major;
 	unsigned int	minor;
+	time_t			mtime;
 	int		pseudo_id;
 	int		pseudo_ino;
 	union {

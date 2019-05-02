@@ -35,6 +35,7 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <ctype.h>
+#include <time.h>
 
 #ifdef LIBARCHIVE_SUPPORT
 #include <archive.h>
@@ -496,8 +497,10 @@ int read_pseudo_def(char *def)
 	}
 	if(type == 's')
 		dev->symlink = strdup(def);
-	if(type != 'm')
+	if(type != 'm') {
+		dev->mtime = time(NULL);
 		dev->pseudo_ino = pseudo_ino++;
+	}
 
 	pseudo = add_pseudo(pseudo, dev, filename, filename);
 
@@ -611,6 +614,7 @@ static int add_tar_entry(struct archive_entry *e, struct tar_handle *h)
 	}
 	if(type == 's')
 		dev->symlink = strdup(archive_entry_symlink(e));
+	dev->mtime = archive_entry_mtime(e);
 	dev->pseudo_ino = pseudo_ino++;
 
 done:
@@ -637,6 +641,7 @@ static void make_intermediate_dirs(struct pseudo *pseudo)
 				MEM_ERROR();
 			dev->type = 'd';
 			dev->mode = 0755 | S_IFDIR;
+			dev->mtime = time(NULL);
 			dev->pseudo_ino = pseudo_ino++;
 			pseudo->name[i].dev = dev;
 		}

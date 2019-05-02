@@ -30,10 +30,16 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <ctype.h>
+
+#ifdef LIBARCHIVE_SUPPORT
+#include <archive.h>
+#include <archive_entry.h>
+#endif
 
 #include "pseudo.h"
 #include "error.h"
@@ -513,6 +519,148 @@ int read_pseudo_file(char *filename)
 	return read_file(filename, "pseudo", read_pseudo_def);
 }
 
+#ifdef LIBARCHIVE_SUPPORT
+
+static int add_tar_entry(struct archive_entry *e, struct tar_handle *h)
+{
+	char *filename = (char *)archive_entry_pathname(e);
+	int type, mode = archive_entry_perm(e);
+	struct pseudo_dev *dev;
+
+	switch((type = archive_entry_filetype(e))) {
+	case AE_IFBLK:
+		mode |= S_IFBLK;
+		type = 'b';
+		break;
+	case AE_IFCHR:
+		mode |= S_IFCHR;
+		type = 'c';
+		break;
+	case AE_IFDIR:
+		mode |= S_IFDIR;
+		type = 'd';
+		break;
+	case AE_IFREG:
+		mode |= S_IFREG;
+		type = 't';
+		break;
+	case AE_IFLNK:
+		/* permissions on symlinks are always rwxrwxrwx */
+		mode = 0777 | S_IFLNK;
+		type = 's';
+		break;
+	case AE_IFIFO:
+		mode |= S_IFIFO;
+		type = 'o';
+		break;
+	default:
+		ERROR("Unknown filetype %d\n", type);
+		return FALSE;
+	}
+
+	dev = calloc(1, sizeof(struct pseudo_dev));
+	if(dev == NULL)
+		MEM_ERROR();
+
+	dev->type = type;
+	dev->mode = mode;
+	dev->uid = archive_entry_uid(e);
+	dev->gid = archive_entry_gid(e);
+	dev->major = archive_entry_rdevmajor(e);
+	dev->minor = archive_entry_rdevminor(e);
+	if(type == 't') {
+		dev->tar = *h;
+		add_pseudo_file(dev);
+	}
+	if(type == 's')
+		dev->symlink = strdup(archive_entry_symlink(e));
+
+	pseudo = add_pseudo(pseudo, dev, filename, filename);
+
+	return TRUE;
+}
+
+/*
+ * Make any intermediate directories for which
+ * no entry was present in tar file
+ */
+static void make_intermediate_dirs(struct pseudo *pseudo)
+{
+	int i;
+
+	if (pseudo == NULL)
+		return;
+
+	for (i = 0; i < pseudo->names; i++) {
+		if (pseudo->name[i].dev == NULL) {
+			struct pseudo_dev *dev = calloc(1, sizeof(struct pseudo_dev));
+			if(dev == NULL)
+				MEM_ERROR();
+			dev->type = 'd';
+			dev->mode = 0755 | S_IFDIR;
+			pseudo->name[i].dev = dev;
+		}
+		make_intermediate_dirs(pseudo->name[i].pseudo);
+	}
+}
+
+int read_tar_file(char *filename)
+{
+	struct archive *a;
+	int r, fd, res = FALSE;
+
+	fd = open(filename, O_RDONLY);
+	if (fd == -1) {
+		ERROR("Could not open archive \"%s\" because %s\n", filename, strerror(errno));
+		return FALSE;
+	}
+
+	a = archive_read_new();
+	if (a == NULL)
+		MEM_ERROR();
+	archive_read_support_format_tar(a);
+	r = archive_read_open_fd(a, fd, 131072);
+	if (r != ARCHIVE_OK) {
+		ERROR("Could not open archive \"%s\" because %s\n", filename, archive_error_string(a));
+		goto fail;
+	}
+
+	while (1) {
+		struct archive_entry *entry;
+		struct tar_handle h;
+
+		h.fd = fd;
+		h.pos = archive_filter_bytes(a, 0);
+		if (h.pos & 511) {
+			ERROR("Odd position in tar file!\n");
+			break;
+		}
+		r = archive_read_next_header(a, &entry);
+		if (r == ARCHIVE_EOF) {
+			res = TRUE;
+			break;
+		}
+		if (r != ARCHIVE_OK) {
+			ERROR("Could not read archive \"%s\" because %s\n", filename, archive_error_string(a));
+			break;
+		}
+		h.size = archive_entry_size(entry);
+		if (add_tar_entry(entry, &h) == FALSE)
+			break;
+		r = archive_read_data_skip(a);
+		if (r != ARCHIVE_OK) {
+			ERROR("Could not read archive \"%s\" because %s\n", filename, archive_error_string(a));
+			break;
+		}
+	}
+	if (res)
+		make_intermediate_dirs(pseudo);
+fail:
+	archive_read_free(a);
+	return res;
+}
+
+#endif
 
 struct pseudo *get_pseudo()
 {

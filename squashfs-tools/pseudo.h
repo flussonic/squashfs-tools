@@ -23,6 +23,12 @@
  *
  * pseudo.h
  */
+struct tar_handle {
+	int		fd;
+	int64_t	pos;
+	int64_t	size;
+};
+
 struct pseudo_dev {
 	char		type;
 	unsigned int	mode;
@@ -34,6 +40,7 @@ struct pseudo_dev {
 	union {
 		char		*command;
 		char		*symlink;
+		struct tar_handle	tar;
 	};
 };
 
@@ -58,4 +65,6 @@ extern struct pseudo_dev *get_pseudo_file(int);
 extern int pseudo_exec_file(struct pseudo_dev *, int *);
 extern struct pseudo *get_pseudo();
 extern void dump_pseudos();
+
+extern int read_tar_file(char *);
 #endif

@@ -37,6 +37,7 @@ struct pseudo_dev {
 	unsigned int	major;
 	unsigned int	minor;
 	int		pseudo_id;
+	int		pseudo_ino;
 	union {
 		char		*command;
 		char		*symlink;

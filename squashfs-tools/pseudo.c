@@ -53,6 +53,7 @@ extern int read_file(char *filename, char *type, int (parse_line)(char *));
 struct pseudo_dev **pseudo_file = NULL;
 struct pseudo *pseudo = NULL;
 int pseudo_count = 0;
+int pseudo_ino = 1;
 
 static char *get_component(char *target, char **targname)
 {
@@ -495,6 +496,8 @@ int read_pseudo_def(char *def)
 	}
 	if(type == 's')
 		dev->symlink = strdup(def);
+	if(type != 'm')
+		dev->pseudo_ino = pseudo_ino++;
 
 	pseudo = add_pseudo(pseudo, dev, filename, filename);
 
@@ -521,11 +524,45 @@ int read_pseudo_file(char *filename)
 
 #ifdef LIBARCHIVE_SUPPORT
 
+static struct pseudo_entry *lookup_pseudo(struct pseudo *pseudo, char *target)
+{
+	char *targname;
+	int i;
+
+	if (pseudo == NULL)
+		return NULL;
+
+	target = get_component(target, &targname);
+
+	for(i = 0; i < pseudo->names; i++) {
+		if(strcmp(pseudo->name[i].name, targname) == 0) {
+			free(targname);
+			if(target[0] == '\0')
+				return &pseudo->name[i];
+			return lookup_pseudo(pseudo->name[i].pseudo, target);
+		}
+	}
+
+	free(targname);
+	return NULL;
+}
+
 static int add_tar_entry(struct archive_entry *e, struct tar_handle *h)
 {
 	char *filename = (char *)archive_entry_pathname(e);
+	char *hardlink = (char *)archive_entry_hardlink(e);
 	int type, mode = archive_entry_perm(e);
 	struct pseudo_dev *dev;
+
+	if (hardlink) {
+		struct pseudo_entry *ent = lookup_pseudo(pseudo, hardlink);
+		if (ent == NULL || ent->dev == NULL) {
+			ERROR("Hardlink target %s not found\n", hardlink);
+			return FALSE;
+		}
+		dev = ent->dev;
+		goto done;
+	}
 
 	switch((type = archive_entry_filetype(e))) {
 	case AE_IFBLK:
@@ -574,7 +611,9 @@ static int add_tar_entry(struct archive_entry *e, struct tar_handle *h)
 	}
 	if(type == 's')
 		dev->symlink = strdup(archive_entry_symlink(e));
+	dev->pseudo_ino = pseudo_ino++;
 
+done:
 	pseudo = add_pseudo(pseudo, dev, filename, filename);
 
 	return TRUE;
@@ -598,6 +637,7 @@ static void make_intermediate_dirs(struct pseudo *pseudo)
 				MEM_ERROR();
 			dev->type = 'd';
 			dev->mode = 0755 | S_IFDIR;
+			dev->pseudo_ino = pseudo_ino++;
 			pseudo->name[i].dev = dev;
 		}
 		make_intermediate_dirs(pseudo->name[i].pseudo);

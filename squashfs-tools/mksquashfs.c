@@ -2167,6 +2167,11 @@ void reader_read_tar(struct dir_ent *dir_ent)
 	struct archive_entry *entry;
 	int r, blocks;
 
+	if(inode->read)
+		return;
+
+	inode->read = TRUE;
+
 	if (lseek(pseudo->tar.fd, pseudo->tar.pos, SEEK_SET) == -1)
 		goto read_err2;
 
@@ -3596,7 +3601,6 @@ void dir_scan2(struct dir_info *dir, struct pseudo *pseudo)
 	struct dir_ent *dir_ent = NULL;
 	struct pseudo_entry *pseudo_ent;
 	struct stat buf;
-	static int pseudo_ino = 1;
 	
 	while((dir_ent = scan2_readdir(dir, dir_ent)) != NULL) {
 		struct inode_info *inode_info = dir_ent->inode;
@@ -3661,7 +3665,7 @@ void dir_scan2(struct dir_info *dir, struct pseudo *pseudo)
 		buf.st_rdev = makedev(pseudo_ent->dev->major,
 			pseudo_ent->dev->minor);
 		buf.st_mtime = time(NULL);
-		buf.st_ino = pseudo_ino ++;
+		buf.st_ino = pseudo_ent->dev->pseudo_ino;
 
 		if(pseudo_ent->dev->type == 'd') {
 			struct dir_ent *dir_ent =
@@ -3675,7 +3679,6 @@ void dir_scan2(struct dir_info *dir, struct pseudo *pseudo)
 					"\"%s\"", pseudo_ent->pathname);
 				ERROR_EXIT(", skipping...\n");
 				free(subpath);
-				pseudo_ino --;
 				continue;
 			}
 			dir_scan2(sub_dir, pseudo_ent->pseudo);

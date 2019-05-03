@@ -64,6 +64,7 @@
 #ifdef LIBARCHIVE_SUPPORT
 #include <archive.h>
 #include <archive_entry.h>
+#include <locale.h>
 #endif
 
 #include "squashfs_fs.h"
@@ -2156,6 +2157,7 @@ read_err:
 }
 
 #ifdef LIBARCHIVE_SUPPORT
+static locale_t libarchive_locale;
 
 void reader_read_tar(struct dir_ent *dir_ent)
 {
@@ -2376,7 +2378,9 @@ void reader_scan(struct dir_info *dir) {
 
 #ifdef LIBARCHIVE_SUPPORT
 		if(IS_PSEUDO_TAR(dir_ent->inode)) {
+			locale_t saved_locale = uselocale(libarchive_locale);
 			reader_read_tar(dir_ent);
+			uselocale(saved_locale);
 			continue;
 		}
 #endif
@@ -5256,6 +5260,10 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 
+#ifdef LIBARCHIVE_SUPPORT
+	libarchive_locale = newlocale(LC_CTYPE_MASK, "", (locale_t)0);
+#endif
+
 	block_log = slog(block_size);
 	calculate_queue_sizes(total_mem, &readq, &fragq, &bwriteq, &fwriteq);
 
@@ -5448,12 +5456,15 @@ print_compressor_options:
 				exit(1);
 #ifdef LIBARCHIVE_SUPPORT
 		} else if(strcmp(argv[i], "-tf") == 0) {
+			locale_t saved_locale;
 			if(++i == argc) {
 				ERROR("%s: -tf missing filename\n", argv[0]);
 				exit(1);
 			}
+			saved_locale = uselocale(libarchive_locale);
 			if(read_tar_file(argv[i]) == FALSE)
 				exit(1);
+			uselocale(saved_locale);
 #endif
 		} else if(strcmp(argv[i], "-recover") == 0) {
 			if(++i == argc) {

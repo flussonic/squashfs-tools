@@ -35,7 +35,6 @@
 #include <stddef.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/sysmacros.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <dirent.h>
@@ -59,12 +58,16 @@
 #else
 #include <endian.h>
 #include <sys/sysinfo.h>
+#include <sys/sysmacros.h>
 #endif
 
 #ifdef LIBARCHIVE_SUPPORT
 #include <archive.h>
 #include <archive_entry.h>
 #include <locale.h>
+#ifdef __APPLE__
+#include <xlocale.h>
+#endif
 #endif
 
 #include "squashfs_fs.h"

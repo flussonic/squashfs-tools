@@ -1,3 +1,19 @@
+Fork description:
+
+This fork compiles and work under MacOSX
+and supports direct tar-to-squashfs work.
+
+You can export docker container to squashfs image with all proper root file ownership.
+
+LIBARCHIVE_SUPPORT=1 make
+
+Then:
+
+CONTAINER=$(docker create my-docker-image); \
+docker export ${CONTAINER} > my-docker-export.tar; \
+docker rm -f ${CONTAINER}
+mkdir dummy && ./mksquashfs dummy my-docker.squashfs -tf my-docker-export.tar
+
 Git status:
 
 This is the squashfs.sourceforge.net CVS repository imported into this

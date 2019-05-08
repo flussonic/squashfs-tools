@@ -32,7 +32,10 @@
 #include "stdarg.h"
 #include "fnmatch_compat.h"
 
+#ifdef linux
 #include <sys/sysinfo.h>
+#include <sys/sysmacros.h>
+#endif
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -2213,7 +2216,7 @@ void initialise_threads(int fragment_buffer_size, int data_buffer_size)
 			"\n");
 
 	if(processors == -1) {
-#ifndef linux
+#if !(defined linux) && !(defined __APPLE__)
 		int mib[2];
 		size_t len = sizeof(processors);
 

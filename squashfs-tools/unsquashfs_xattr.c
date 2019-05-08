@@ -29,6 +29,10 @@
 
 #define NOSPACE_MAX 10
 
+#ifdef __APPLE__
+#define lsetxattr(path, name, value, size, flags)	setxattr(path, name, value, size, 0, (flags) | XATTR_NOFOLLOW)
+#endif
+
 extern int root_process;
 extern int user_xattrs;
 

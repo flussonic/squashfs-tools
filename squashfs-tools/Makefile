@@ -87,6 +87,13 @@ GZIP_SUPPORT = 1
 #
 #ZSTD_SUPPORT = 1
 
+########### Building libarchive support ############
+#
+# Support for reading directly from tar files
+# using libarchive (http://www.libarchive.org)
+#
+#LIBARCHIVE_SUPPORT = 1
+
 ######## Specifying default compression ########
 #
 # The next line specifies which compression algorithm is used by default
@@ -205,6 +212,11 @@ CFLAGS += -DXATTR_SUPPORT
 endif
 MKSQUASHFS_OBJS += xattr.o read_xattrs.o
 UNSQUASHFS_OBJS += read_xattrs.o unsquashfs_xattr.o
+endif
+
+ifeq ($(LIBARCHIVE_SUPPORT),1)
+CFLAGS += -DLIBARCHIVE_SUPPORT
+LIBS += -larchive
 endif
 
 #

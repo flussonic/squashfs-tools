@@ -36,6 +36,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <time.h>
 
 #include "squashfs_fs.h"
 #include "unsquashfs.h"
@@ -96,6 +97,32 @@ void dump_state()
 
 void *info_thrd(void *arg)
 {
+#ifdef __APPLE__
+	sigset_t sigmask;
+	time_t last = 0;
+
+	sigemptyset(&sigmask);
+	sigaddset(&sigmask, SIGQUIT);
+	sigaddset(&sigmask, SIGHUP);
+
+	while(1) {
+		int sig = -1;
+		time_t now;
+
+		if (sigwait(&sigmask, &sig)) {
+			ERROR("sigwait failed\n");
+			return NULL;
+		}
+
+		now = time(NULL);
+		if(sig == SIGQUIT && now > last) {
+			if(pathname)
+				INFO("%s\n", pathname);
+		} else
+			dump_state();
+		last = now;
+	}
+#else
 	sigset_t sigmask;
 	struct timespec timespec = { .tv_sec = 1, .tv_nsec = 0 };
 	int sig, waiting = 0;
@@ -136,6 +163,7 @@ void *info_thrd(void *arg)
 		} else
 			dump_state();
 	}
+#endif
 }
 
 

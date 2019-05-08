@@ -43,6 +43,11 @@
 #include "error.h"
 #include "progressbar.h"
 
+#ifdef __APPLE__
+#define llistxattr(path, list, size)		listxattr(path, list, size, XATTR_NOFOLLOW)
+#define lgetxattr(path, name, value, size)	getxattr(path, name, value, size, 0, XATTR_NOFOLLOW)
+#endif
+
 /* compressed xattr table */
 static char *xattr_table = NULL;
 static unsigned int xattr_size = 0;
